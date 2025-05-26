@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Table Tennis Tournament</title>
+  <style>
+    body { 
+    font-family: monospace; 
+    background: none;
+    padding: 20px; 
+    transition: background 0s 0.2s, opacity 0.4s;
+    }
+    button {
+    margin: 4px; 
+    padding: 6px 12px; 
+    font-size: 16px; 
+    transition: color 0.4s ease;
+    }
+    input { padding: 4px; font-size: 16px; width: 60px; margin-top: 8px; transition: background-color 0.4s ease, color 0.4s ease;}
+    .scoreboard {
+    margin-top: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column; /* stack vertically */
+    gap: 1em; /* space between tournament and match score */
+    transition: background-color 0.4s ease, color 0.4s ease;
+    }
+
+    .scoreboard p {
+    display: inline-block;      
+    justify-content: center;
+    align-items: center;
+    font-variant-numeric: tabular-nums; /* make digits align better */
+    }
+    .scoreboard p .colon {
+    position: relative;
+    top: -0.05em; /* adjust this until it looks centered */
+    font-size: 1.2em;
+    }
+    .deuce { color: red; font-weight: bold; }
+    .container {
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      text-align:center;
+      transition: background-color 0.4 ease, color 0.4 ease;
+    }
+    .scroll-container {
+    position: relative;
+    display: inline-block;
+    width: 90px; /* reduced from 180px */
+    height: 70px;
+    overflow: hidden;
+    vertical-align: bottom;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    }
+
+    .scrolling-number {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    font-weight: bold;
+    font-size: 60px;    /* very large font */
+    line-height: 70px;  /* match container height */
+    user-select: none;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    top: 0;
+    }
+
+    .controls {
+      opacity: 0;
+      transform: scaleY(0);
+      transform-origin: top;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      overflow: hidden;
+    }
+
+    .show-controls .controls {
+      opacity: 1;
+      transform: scaleY(1);
+    }
+
+    h2, label, p {
+      transition: color 0.4s ease;
+    }
+
+    @media (min-width: 769px) {
+    .scroll-container {
+        width: 3.5em; /* was 6em */
+        height: 2em;
+    }
+    .scrolling-number {
+        font-size: 2rem;
+        line-height: 2em;
+    }
+    }
+    body.dark {
+    background: none;
+    color: #eee;
+    transition: background 0s 0.2s, opacity 0.4s;
+    }
+    body.dark button {
+    background-color: #333;
+    color: #eee;
+    border-color: #888; /* only change border color */
+    transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+    }
+    body.dark input{
+    background-color: #333;
+    color: #eee;
+    border: 1px solid #888;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    }
+    body.dark .scrolling-number {
+    color: #fffd;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    body::before {
+      background: linear-gradient(to right, #80bfe1 50%, #e1726a 50%);
+      opacity: 1; /* visible in light mode */
+    }
+
+    body::after {
+      background: linear-gradient(to right, #042838 50%, #380404 50%);
+      opacity: 0; /* hidden in light mode */
+    }
+
+    body.dark::before {
+      opacity: 0; /* hide light gradient */
+    }
+
+    body.dark::after {
+      opacity: 1; /* show dark gradient */
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+<div style="position: absolute; top: 10px; right: 10px;">
+    <button id="muteBtn" title="Toggle sound effect" aria-label="Toggle sound effect">🔊</button>
+    <button id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+</div>      
+<h2>🏓 Table Tennis Scoreboard</h2>
+<label>How many matches? (positive odd number): </label>
+<input id="matchCountInput" type="number" min="1" max="11" step="2" onkeypress="return isNumberKey(event)" />
+<p id="errorMsg" style="color:red; font-weight:bold; margin: 4px;"></p>
+<button id="startButton" onclick="startTournament()">Start</button>
+
+<div id="controls" class="controls">
+    <div class="scoreboard">
+      <p>
+        <span>Whole tournament:</span><br>
+        <span class="scroll-container" id="tourn-p1">
+          <span class="scrolling-number old">0</span>
+          <span class="scrolling-number new"></span>
+        </span>
+        <span class="colon">:</span>
+        <span class="scroll-container" id="tourn-p2">
+          <span class="scrolling-number old">0</span>
+          <span class="scrolling-number new"></span>
+        </span>
+      </p>
+      <p>
+        <span>This Match:</span><br>
+        <span class="scroll-container" id="match-p1">
+          <span class="scrolling-number old">0</span>
+          <span class="scrolling-number new"></span>
+        </span>
+        <span class="colon">:</span>
+        <span class="scroll-container" id="match-p2">
+          <span class="scrolling-number old">0</span>
+          <span class="scrolling-number new"></span>
+        </span>
+      </p>
+    </div>
+  
+    <p>
+      <strong>Controls:</strong><br>
+      - Press <code>a</code> to add point to Player 1<br>
+      - Press <code>s</code> to add point to Player 2<br>
+      - Press <code>z</code> to subtract from Player 1<br>
+      - Press <code>x</code> to subtract from Player 2<br>
+      - Press <code>r</code> to restart the tournament<br>
+    </p>
+    <button onclick="updateScore('a')">a (P1 +1)</button>
+    <button onclick="updateScore('s')">s (P2 +1)</button>
+    <button onclick="updateScore('z')">z (P1 -1)</button>
+    <button onclick="updateScore('x')">x (P2 -1)</button>
+  
+    <div id="endPrompt" style="margin-top:10px;"></div>
+  </div>
+<p id="deuce" class="deuce"></p>
+<script>
+let big1 = 0, big2 = 0, small1 = 0, small2 = 0;
+let totalMatches = 0, toWin = 0;
+let active = false;
+
+const transitionSound = new Audio("sound/transition.mp3");
+transitionSound.volume = 0.8;
+
+function startTournament() {
+  const input = document.getElementById('matchCountInput');
+  const n = parseInt(input.value);
+  if (isNaN(n) || n <= 0 || n % 2 === 0 || n > 11) {
+    alert("on9?");
+    return;
+  }
+  totalMatches = n;
+  toWin = Math.floor(n / 2) + 1;
+  big1 = big2 = small1 = small2 = 0;
+  document.body.classList.add("show-controls");
+  document.getElementById('endPrompt').innerHTML = '';
+  active = true;
+  updateDisplay();
+}
+
+document.getElementById('matchCountInput').addEventListener('input', function () {
+  const val = parseInt(this.value);
+  const msg = document.getElementById('errorMsg');
+  msg.textContent = "";
+
+  if (val > 11) {
+    msg.textContent = "Too big la! Max is 11";
+    this.value = 11;
+  } else if (val < 1) {
+    msg.textContent = "Must be at least 1 la!";
+    this.value = 1;
+  } else if (val % 2 === 0) {
+    msg.textContent = "Odd mean n % 2 = 1:)";
+    this.value = val - 1;
+  }
+});
+
+function updateScore(c) {
+  if (!active) return;
+
+  if (c === 'a') small1++;
+  else if (c === 's') small2++;
+  else if (c === 'z') small1--;
+  else if (c === 'x') small2--;
+
+  if (small1 < 0) small1 = 0;
+  if (small2 < 0) small2 = 0;
+
+  checkMatch();
+  updateDisplay();
+}
+
+function checkMatch() {
+  if ((small1 >= 11 || small2 >= 11) && Math.abs(small1 - small2) >= 2) {
+    if (small1 > small2) big1++;
+    else big2++;
+
+    if (big1 === toWin || big2 === toWin) {
+      document.getElementById('endPrompt').innerHTML = `
+        <p><b>Player ${big1 === toWin ? '1' : '2'} wins the whole tournament by ${big1}:${big2}!</b></p>
+        <button onclick="restart()">Play Another Game?</button>
+      `;
+      active = false;
+    } else {
+      alert(`Player ${small1 > small2 ? '1' : '2'} wins this match. Match ${big1 + big2 + 1} starts.`);
+      small1 = small2 = 0;
+    }
+  }
+}
+
+const scoreAnimQueues = new Map();
+const scoreAnimRunning = new Map();
+
+function enqueueScoreAnimation(container, newValue) {
+  if (!scoreAnimQueues.has(container)) scoreAnimQueues.set(container, []);
+  if (!scoreAnimRunning.has(container)) scoreAnimRunning.set(container, false);
+
+  const queue = scoreAnimQueues.get(container);
+
+  if (queue.length === 0 || queue[queue.length - 1] !== newValue) {
+    queue.push(newValue);
+  }
+
+  if (!scoreAnimRunning.get(container)) {
+    scoreAnimRunning.set(container, true);
+    processScoreQueue(container);
+  }
+}
+
+function processScoreQueue(container) {
+  const queue = scoreAnimQueues.get(container);
+  if (!queue || queue.length === 0) {
+    scoreAnimRunning.set(container, false);
+    return;
+  }
+
+  const newValue = queue[0];
+  const oldElem = container.querySelector('.old');
+  const newElem = container.querySelector('.new');
+
+  const oldValue = parseInt(oldElem.innerText);
+  const newScore = parseInt(newValue);
+
+  if (oldValue === newScore) {
+    queue.shift();
+    processScoreQueue(container);
+    return;
+  }
+
+  transitionSound.currentTime = 0;
+  transitionSound.play();
+
+  const goingUp = newScore > oldValue;
+  const offset = goingUp ? 1.4 : -1.4;
+
+  newElem.innerText = newValue;
+  newElem.style.transition = 'none';
+  oldElem.style.transition = 'none';
+
+  newElem.style.transform = `translateY(${offset}em)`;
+  oldElem.style.transform = 'translateY(0)';
+
+  void newElem.offsetWidth;
+
+  newElem.style.transition = 'transform 0.4s ease';
+  oldElem.style.transition = 'transform 0.4s ease';
+
+  newElem.style.transform = 'translateY(0)';
+  oldElem.style.transform = `translateY(${-offset}em)`;
+
+  setTimeout(() => {
+    oldElem.innerText = newValue;
+    newElem.innerText = '';
+    newElem.style.transition = 'none';
+    oldElem.style.transition = 'none';
+
+    newElem.style.transform = `translateY(${offset}em)`;
+    oldElem.style.transform = 'translateY(0)';
+
+    queue.shift();
+    setTimeout(() => processScoreQueue(container), 50);
+  }, 400);
+}
+
+function updateDisplay() {
+  enqueueScoreAnimation(document.getElementById('tourn-p1'), big1.toString());
+  enqueueScoreAnimation(document.getElementById('tourn-p2'), big2.toString());
+  enqueueScoreAnimation(document.getElementById('match-p1'), small1.toString());
+  enqueueScoreAnimation(document.getElementById('match-p2'), small2.toString());
+
+  document.getElementById('deuce').innerText = 
+    (small1 >= 10 && small2 >= 10 && Math.abs(small1 - small2) < 2) ? "Deuce!" : "";
+}
+
+function restart() {
+  document.body.classList.remove("show-controls");
+  document.getElementById('matchCountInput').value = '';
+  active = false;
+}
+
+document.addEventListener("keydown", (e) => {
+  const key = e.key;
+
+  const activeElement = document.activeElement;
+  if (key === "Enter" && activeElement.id === "matchCountInput") {
+    document.getElementById("startButton").click();
+    activeElement.blur();
+    return;
+  }
+
+  if (["a", "s", "z", "x"].includes(key)) {
+    updateScore(key);
+  }
+
+  if (key === "r") {
+    startTournament();
+  }
+});
+
+function isNumberKey(evt) {
+  const charCode = evt.which ?? evt.keyCode;
+
+  // Disallow decimal points, minus signs, e, etc.
+  // Allow only digits 0–9
+  if (charCode < 48 || charCode > 57) {
+    evt.preventDefault();
+    return false;
+  }
+  return true;
+}
+
+let muted = false;
+
+document.getElementById("muteBtn").addEventListener("click", () => {
+  muted = !muted;
+  transitionSound.muted = muted;
+  document.getElementById("muteBtn").textContent = muted ? "🔇" : "🔊";
+});
+
+// Load dark mode preference
+window.addEventListener('load', () => {
+  const isDark = localStorage.getItem("dark") === "true";
+  if (isDark) {
+    document.body.classList.add("dark");
+    document.getElementById("darkModeBtn").textContent = "☀️";
+  }
+});
+
+document.getElementById("darkModeBtn").addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  const isDark = document.body.classList.contains("dark");
+  document.getElementById("darkModeBtn").textContent = isDark ? "☀️" : "🌙";
+  localStorage.setItem("dark", isDark);
+});
+
+</script>
+</div>
+</body>
+</html>
